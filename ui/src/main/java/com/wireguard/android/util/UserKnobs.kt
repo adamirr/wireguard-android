@@ -47,6 +47,12 @@ object UserKnobs {
             it[ALLOW_REMOTE_CONTROL_INTENTS] ?: false
         }
 
+    private val RUN_IN_FOREGROUND = preferencesKey<Boolean>("run_in_foreground")
+    val runInForeground: Flow<Boolean>
+        get() = Application.getPreferencesDataStore().data.map {
+            it[RUN_IN_FOREGROUND] ?: false
+        }
+
     private val RESTORE_ON_BOOT = preferencesKey<Boolean>("restore_on_boot")
     val restoreOnBoot: Flow<Boolean>
         get() = Application.getPreferencesDataStore().data.map {

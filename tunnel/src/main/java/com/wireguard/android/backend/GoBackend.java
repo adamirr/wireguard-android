@@ -5,9 +5,12 @@
 
 package com.wireguard.android.backend;
 
+import android.app.Notification;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Build.VERSION;
+import android.os.Build.VERSION_CODES;
 import android.os.ParcelFileDescriptor;
 import android.system.OsConstants;
 import android.util.Log;
@@ -45,6 +48,7 @@ public final class GoBackend implements Backend {
     private static GhettoCompletableFuture<VpnService> vpnService = new GhettoCompletableFuture<>();
     private final Context context;
     private final TunnelActionHandler tunnelActionHandler;
+    @Nullable private final Notification foregroundNotification;
     @Nullable private Config currentConfig;
     @Nullable private Tunnel currentTunnel;
     private int currentTunnelHandle = -1;
@@ -66,9 +70,25 @@ public final class GoBackend implements Backend {
      *                            scripts when a tunnel's state changes
      */
     public GoBackend(final Context context, final TunnelActionHandler tunnelActionHandler) {
+        this(context, tunnelActionHandler, null);
+    }
+
+    /**
+     * Public constructor for GoBackend
+     *
+     * @param context An Android {@link Context}
+     * @param tunnelActionHandler A {@link TunnelActionHandler} for executing Pre/Post Up/Down
+     *                            scripts when a tunnel's state changes
+     * @param foregroundNotification notification to use when running in the foreground. If null, then
+     *                               WireGuard runs in the background
+     */
+    public GoBackend(final Context context, final TunnelActionHandler tunnelActionHandler,
+                     @Nullable final Notification foregroundNotification) {
+
         SharedLibraryLoader.loadSharedLibrary(context, "wg-go");
         this.context = context;
         this.tunnelActionHandler = tunnelActionHandler;
+        this.foregroundNotification = foregroundNotification;
     }
 
     /**
@@ -229,7 +249,14 @@ public final class GoBackend implements Backend {
             final VpnService service;
             if (!vpnService.isDone()) {
                 Log.d(TAG, "Requesting to start VpnService");
-                context.startService(new Intent(context, VpnService.class));
+                final Intent startServiceIntent = new Intent(context, VpnService.class);
+                if (foregroundNotification != null && VERSION.SDK_INT >= VERSION_CODES.O) {
+                    Log.i(TAG, "Running in foreground");
+                    context.startForegroundService(startServiceIntent);
+                } else {
+                    Log.i(TAG, "Running in background");
+                    context.startService(startServiceIntent);
+                }
             }
 
             try {
@@ -240,6 +267,7 @@ public final class GoBackend implements Backend {
                 throw be;
             }
             service.setOwner(this);
+            service.setForegroundNotification(foregroundNotification);
 
             if (currentTunnelHandle != -1) {
                 Log.w(TAG, "Tunnel already up");
@@ -318,6 +346,11 @@ public final class GoBackend implements Backend {
             currentTunnel = null;
             currentTunnelHandle = -1;
             currentConfig = null;
+            try {
+                vpnService.get(2, TimeUnit.SECONDS).disconnect();
+            } catch (final Exception ignore) {
+                Log.d(TAG, "VPN Service not available after 2 seconds");
+            }
         }
 
         tunnel.onStateChange(state);
@@ -365,6 +398,9 @@ public final class GoBackend implements Backend {
      */
     public static class VpnService extends android.net.VpnService {
         @Nullable private GoBackend owner;
+        @Nullable private Notification foregroundNotification;
+        private static final int FOREGROUND_NOTIFICATION_ID = 1;
+        private boolean hasForegroundNotification;
 
         public Builder getBuilder() {
             return new Builder();
@@ -378,6 +414,11 @@ public final class GoBackend implements Backend {
 
         @Override
         public void onDestroy() {
+            disconnect();
+            super.onDestroy();
+        }
+
+        public void disconnect() {
             if (owner != null) {
                 final Tunnel tunnel = owner.currentTunnel;
                 if (tunnel != null) {
@@ -389,8 +430,11 @@ public final class GoBackend implements Backend {
                     tunnel.onStateChange(State.DOWN);
                 }
             }
+            if (hasForegroundNotification) {
+                stopForeground(true);
+                hasForegroundNotification = false;
+            }
             vpnService = vpnService.newIncompleteFuture();
-            super.onDestroy();
         }
 
         @Override
@@ -400,12 +444,20 @@ public final class GoBackend implements Backend {
                 Log.d(TAG, "Service started by Always-on VPN feature");
                 if (alwaysOnCallback != null)
                     alwaysOnCallback.alwaysOnTriggered();
+            } else if (foregroundNotification != null && VERSION.SDK_INT >= VERSION_CODES.O) {
+                Log.d(TAG, "Putting service into foreground");
+                startForeground(FOREGROUND_NOTIFICATION_ID, foregroundNotification);
+                hasForegroundNotification = true;
             }
             return super.onStartCommand(intent, flags, startId);
         }
 
         public void setOwner(final GoBackend owner) {
             this.owner = owner;
+        }
+
+        public void setForegroundNotification(@Nullable  final Notification foregroundNotification) {
+            this.foregroundNotification = foregroundNotification;
         }
     }
 }

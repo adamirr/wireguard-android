@@ -6,6 +6,13 @@
         android:key="version" />
     <CheckBoxPreference
         android:defaultValue="false"
+        android:key="run_in_foreground"
+        android:summaryOff="@string/run_in_foreground_summary_off"
+        android:summaryOn="@string/run_in_foreground_summary_on"
+        android:disableDependentsState="false"
+        android:title="@string/run_in_foreground_title" />
+    <CheckBoxPreference
+        android:defaultValue="false"
         android:key="restore_on_boot"
         android:summaryOff="@string/restore_on_boot_summary_off"
         android:summaryOn="@string/restore_on_boot_summary_on"

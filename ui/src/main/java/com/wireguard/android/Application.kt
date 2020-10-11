@@ -4,6 +4,7 @@
  */
 package com.wireguard.android
 
+import android.app.Notification
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -23,6 +24,7 @@ import com.wireguard.android.backend.TunnelActionHandler
 import com.wireguard.android.backend.WgQuickBackend
 import com.wireguard.android.configStore.FileConfigStore
 import com.wireguard.android.model.TunnelManager
+import com.wireguard.android.notification.NotificationFactory
 import com.wireguard.android.util.ModuleLoader
 import com.wireguard.android.util.RootShell
 import com.wireguard.android.util.ToolsInstaller
@@ -104,7 +106,14 @@ class Application : android.app.Application() {
                 Log.d(TAG, "Using NOOP action handler")
             }
 
-            backend = GoBackend(applicationContext, tunnelActionHandler);
+            val foregroundNotification: Notification?
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && UserKnobs.runInForeground.first()) {
+                foregroundNotification = NotificationFactory(applicationContext).createForegroundNotification()
+            } else {
+                foregroundNotification = null
+            }
+
+            backend = GoBackend(applicationContext, tunnelActionHandler, foregroundNotification);
             GoBackend.setAlwaysOnCallback { get().applicationScope.launch { get().tunnelManager.restoreState(true) } }
         }
         return backend

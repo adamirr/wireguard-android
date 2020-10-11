@@ -178,6 +178,12 @@
     <string name="restore_on_boot_summary_off">Will not bring up enabled tunnels at boot</string>
     <string name="restore_on_boot_summary_on">Will bring up enabled tunnels at boot</string>
     <string name="restore_on_boot_title">Restore on boot</string>
+    <string name="run_in_foreground_summary_off">Will run in the background</string>
+    <string name="run_in_foreground_summary_on">Will run in the foreground</string>
+    <string name="run_in_foreground_title">Run in foreground</string>
+    <string name="run_in_foreground_notification_text">WireGuard is running</string>
+    <string name="run_in_foreground_notification_action_close">Close</string>
+    run_in_foreground_notification_action_close
     <string name="save">Save</string>
     <string name="select_all">Select all</string>
     <string name="settings">Settings</string>

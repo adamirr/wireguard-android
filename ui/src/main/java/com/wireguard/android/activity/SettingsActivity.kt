@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+
 /**
  * Interface for changing application-global persistent settings.
  */
@@ -57,13 +58,22 @@ class SettingsActivity : ThemeChangeAwareActivity() {
                 val remoteApps = preferenceManager.findPreference<Preference>("allow_remote_control_intents")
                 remoteApps?.parent?.removePreference(remoteApps)
             }
+            val restoreAtBootPref = preferenceManager.findPreference<Preference>("restore_at_boot")
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                lifecycleScope.launch {
+                    if (Application.getBackend() !is WgQuickBackend) {
+                        restoreAtBootPref?.parent?.removePreference(restoreAtBootPref)
+                    }
+                }
+            }
             if (AdminKnobs.disableConfigExport) {
                 val zipExporter = preferenceManager.findPreference<Preference>("zip_exporter")
                 zipExporter?.parent?.removePreference(zipExporter)
             }
+            val runInForegroundPref = preferenceManager.findPreference<Preference>("run_in_foreground")
+            runInForegroundPref?.isVisible = false
             val wgQuickOnlyPrefs = arrayOf(
                     preferenceManager.findPreference("tools_installer"),
-                    preferenceManager.findPreference("restore_on_boot"),
                     preferenceManager.findPreference<Preference>("multiple_tunnels")
             ).filterNotNull()
             wgQuickOnlyPrefs.forEach { it.isVisible = false }
@@ -71,8 +81,11 @@ class SettingsActivity : ThemeChangeAwareActivity() {
                 if (Application.getBackend() is WgQuickBackend) {
                     ++preferenceScreen.initialExpandedChildrenCount
                     wgQuickOnlyPrefs.forEach { it.isVisible = true }
+                    runInForegroundPref?.parent?.removePreference(runInForegroundPref)
                 } else {
                     wgQuickOnlyPrefs.forEach { it.parent?.removePreference(it) }
+                    restoreAtBootPref?.dependency = runInForegroundPref?.key
+                    runInForegroundPref?.isVisible = true
                 }
             }
             preferenceManager.findPreference<Preference>("log_viewer")?.setOnPreferenceClickListener {
